@@ -1,0 +1,18 @@
+Git token: 90 day from 01/08
+
+sudo yum install git
+git config --global user.name «Name»
+git config --global user.email «name1@email.com«
+mkdir myproject 
+git init .	сделать текущую директорию гит-источником
+touch file1	создать файл1
+touch file2	создать файл2
+git add *	добавить все файлы директории в гит
+git status	посмотреть статус файлов (покажет что файл1 и файл2 были добавлены)
+git commit -m «v 0.1»		сделать снимок текущего состояния в локальный репо
+git push origin push в git
+git pull origin	pull из git
+git log		лог всех коммитов	log -1 -p	лог изменений в последнем коммите
+git checkout — file	откат изменений
+nano .gitignore	*.log logs/ или просто названия файлов - git будет игнорировать эти расширения/директории/файлы
+
