@@ -1,57 +1,45 @@
-PetProject - Zabbix monitoring of the mining farm
+# Настройка VPN сервера Wireguard.
+# Создание VM на Ubuntu с минимальными характеристиками 1 CPU, 1 Gb RAM.
+# Сетевые настройки: Wireguard работает через UDP, поэтому следует обратить внимание входящие правила группы безопасности (должен быть открыт необходимый порт UDP). 
 
-VM - VPN Wireguard - VM - Zabbix
-
-Настройки Zabbix должны попадать на хост через Ansible
-
-Написать мануал
-
-Привязать к домену
-
-Настройка VPN сервера Wireguard.
-Создание ВМ на Ubuntu с минимальными характеристиками 1 CPU, 1 Gb RAM.
-
-sudo su apt update && apt upgrade -y	обновление сервера, пакеты
-apt install -y wireguard	установка wireguard
-wg genkey | tee /etc/wireguard/privatekey | wg pubkey | tee /etc/wireguard/publickey	генерим  ключи сервера 
-chmod 600 /etc/wireguard/privatekey	выставляем права на файл приватного ключа
-ip a	проверим, как у вас называется сетевой интерфейс
-
-
-Скорее всего у вас сетевой интерфейс eth0, но возможно и другой, например, ens3 или как-то иначе. Это название интерфейса используется далее в конфиге /etc/wireguard/wg0.conf, который мы сейчас создадим:
+sudo su apt update && apt upgrade -y	#обновление сервера, пакеты
+apt install -y wireguard	#установка wireguard
+wg genkey | tee /etc/wireguard/privatekey | wg pubkey | tee /etc/wireguard/publickey	#генерим  ключи сервера. tee записывает то, что передает wg genkey и выдает в STDOUT
+ 
+chmod 600 /etc/wireguard/privatekey	#выставляем права на файл приватного ключа
+ip a	#проверим, как называется сетевой интерфейс, будет использоваться в конфиге
 
 vim /etc/wireguard/wg0.conf
 
 [Interface]
-PrivateKey = <privatekey>
-Address = 10.0.0.1/24	# это будет адрес VPN-сервера
-ListenPort = 51830		# используем любой удобный
-PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+PrivateKey = privatekey
+Address = 10.8.0.1/32	# это будет адрес VPN-сервера
+ListenPort = 51820		# используем любой удобный
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o ens3 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o ens3 -j MASQUERADE
 
-Обратите внимание — в строках PostUp и PostDown использован как раз сетевой интерфейс eth0. Если у вас другой — замените eth0 на ваш.
+#В строках PostUp и PostDown указан сетевой интерфейс ens3. Если у вас другой — замените на ваш.
 
-Вставляем вместо <privatekey> содержимое файла /etc/wireguard/privatekey
+#Вставляем вместо <privatekey> содержимое файла /etc/wireguard/privatekey
 
-Настраиваем IP форвардинг:
+#Настраиваем IP форвардинг:
 echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
 sysctl -p
 
-Включаем systemd демон с wireguard:
+#Включаем systemd демон с wireguard:
 systemctl enable wg-quick@wg0.service
 systemctl start wg-quick@wg0.service
 systemctl status wg-quick@wg0.service
 
-Создаём ключи клиента:
-wg genkey | tee /etc/wireguard/name_privatekey | wg pubkey | tee /etc/wireguard/name_publickey
+#Создаём ключи клиента:
+wg genkey | tee /etc/wireguard/name_privatekey | wg pubkey | tee /etc/wireguard/name_pubickey
 
 Добавляем в конфиг сервера клиента:
 vim /etc/wireguard/wg0.conf
 
 [Peer]
 PublicKey = <name_publickey>	#содержимое файла /etc/wireguard/name_publickey
-AllowedIPs = 10.0.0.2/32
-
+AllowedIPs = 10.8.0.2/32, 192.168.1.0/24 #IP пира и домашнюю сеть, в которой он сидит
 
 Перезагружаем systemd сервис с wireguard:
 systemctl restart wg-quick@wg0
@@ -62,14 +50,14 @@ vim name_wb.conf
 
 [Interface]
 PrivateKey = <CLIENT-PRIVATE-KEY>
-Address = 10.0.0.2/32
-DNS = 8.8.8.8
+Address = 10.8.0.2/32
+ListenPort = 51820
 
 [Peer]
 PublicKey = <SERVER-PUBKEY>
-Endpoint = <SERVER-IP>:51830
-AllowedIPs = 0.0.0.0/0
-PersistentKeepalive = 20
+Endpoint = <SERVER-IP>:51820
+AllowedIPs = 10.8.0.0/24, 172.31.32.0/20 #IP созданной подсети (либо адрес сервера) и IP подсети, в которой расположен Wireguard сервер
+PersistentKeepalive = 50
 
 Здесь <CLIENT-PRIVATE-KEY> заменяем на приватный ключ клиента, то есть содержимое файла /etc/wireguard/name_privatekey на сервере.  <SERVER-PUBKEY> заменяем на публичный ключ сервера, то есть на содержимое файла /etc/wireguard/publickey на сервере. <SERVER-IP> заменяем на IP сервера. 
 
